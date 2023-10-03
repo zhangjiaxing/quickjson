@@ -173,41 +173,36 @@ uint32_t str_unescape(const char *from, char *to, uint32_t len, const char **par
 
     while(from[from_pos] != '\0' && from[from_pos] != '\"' && to_pos < last) {
         if(from[from_pos] == '\\') {
-            switch(from[from_pos++]) {
+            from_pos++;
+            switch(from[from_pos]) {
             case '\"':
-                to[to_pos++] = '\\';
                 to[to_pos++] = '\"';
                 break;
             case '\\':
                 to[to_pos++] = '\\';
-                to[to_pos++] = '\\';
                 break;
             case 'b':
-                to[to_pos++] = '\\';
                 to[to_pos++] = '\b';
                 break;
             case 'f':
-                to[to_pos++] = '\\';
                 to[to_pos++] = '\f';
                 break;
             case 'n':
-                to[to_pos++] = '\\';
                 to[to_pos++] = '\n';
                 break;
             case 'r':
-                to[to_pos++] = '\\';
                 to[to_pos++] = '\r';
                 break;
             case 't':
-                to[to_pos++] = '\\';
                 to[to_pos++] = '\t';
                 break;
             default:
                 to[to_pos++] = from[from_pos];
             }
         } else {
-            to[to_pos++] = from[from_pos++];
+            to[to_pos++] = from[from_pos];
         }
+        from_pos++;
     }
 
     if(parse_end != NULL) {
@@ -296,6 +291,7 @@ uint32_t qjson_load_string(const char *str, qjson_value_t **value, const char **
         return FAILURE;
     }
 
+    printf(">>>> %s\n", buf);
     *value = qjson_create_str(buf);
     free(buf);
     return SUCCESS;
@@ -342,7 +338,7 @@ uint32_t qjson_array_length(qjson_array_t *arr) {
 void test_dump_array() {
     const char * strlist[] = {
         "linux",
-        "fire\tfox",
+        "firefox",
         "emacs",
         "vim",
         "bash",
@@ -377,7 +373,7 @@ void test_load_string() {
 
     qjson_value_t *json_value;
     const char *parse_end = NULL;
-    const char *str = "  \t\"nihao\t\\hello world\"string end";
+    const char *str = "  \t\"nihao\t\\hello\\\\world\"string end";
     uint32_t ret = qjson_load_string(str, &json_value, &parse_end);
 
     printf("ret: [%d]\n", ret);
@@ -391,7 +387,7 @@ void test_load_string() {
 void test_unescape() {
     printf("in [%s]\n", __FUNCTION__);
 
-    const char *str = "nihao\t\\\bhello\"END";
+    const char *str = "nihao\\t\\\\hello\\\"E\"ND";
     char buf[BUFLEN];
     const char *parse_end;
     uint32_t ret = str_unescape(str, buf, BUFLEN, &parse_end);
