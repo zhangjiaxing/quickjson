@@ -1,4 +1,12 @@
 CC=gcc
+CFLAGS=-g -ggdb -std=gnu99 -O
 
 quickjson: quickjson.c
-	$(CC) -g -ggdb -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
+
+
+clean:
+	rm -rf quickjson
+
+.PHONY: clean
+
