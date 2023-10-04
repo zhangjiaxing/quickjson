@@ -32,7 +32,7 @@ struct qjson_object;
 struct qjson_value {
     qjson_type_t json_type;
     union {
-        int64_t interger;
+        int64_t integer;
         double fraction;
         char *str;
         struct qjson_array *array;
@@ -70,7 +70,7 @@ qjson_value_t *qjson_create_int(int64_t i) {
     qjson_value_t *self = malloc(sizeof(*self));
     memset(self, 0, sizeof(*self));
     self->json_type = QJSON_INT;
-    self->v.interger = i;
+    self->v.integer = i;
     return self;
 }
 
@@ -232,7 +232,7 @@ uint32_t qjson_dump(qjson_value_t *value, char *buf, uint32_t len) {
     qjson_type_t json_type = value->json_type;
     switch (json_type) {
     case QJSON_INT:
-        return snprintf(buf, len, "%lld", value->v.interger);
+        return snprintf(buf, len, "%lld", value->v.integer);
     case QJSON_FLOAT:
         return snprintf(buf, len, "%lf", value->v.fraction);
     case QJSON_NULL:
@@ -298,12 +298,12 @@ uint32_t qjson_load_string(const char *str, qjson_value_t **value, const char **
 
 
 uint32_t qjson_load_integer(const char *str, int64_t *integer, const char **parse_end) {
-#define INTERGER_STR_MAX_LEN 20
+#define INTEGER_STR_MAX_LEN 20
     int rpos = 0;
     int wpos = 0;
-    char integer_str[INTERGER_STR_MAX_LEN + 1];
+    char integer_str[INTEGER_STR_MAX_LEN + 1];
 
-    while((isdigit(str[rpos]) || str[rpos] == '-' ) && wpos < INTERGER_STR_MAX_LEN) {
+    while((isdigit(str[rpos]) || str[rpos] == '-' ) && wpos < INTEGER_STR_MAX_LEN) {
         integer_str[wpos++] = str[rpos++];
     }
     integer_str[wpos] = '\0';
@@ -327,8 +327,8 @@ uint32_t qjson_load_fraction(const char *str, uint64_t *fraction, const char **p
 
     uint32_t rpos = 1;
     uint32_t wpos = 0;
-    char buf[INTERGER_STR_MAX_LEN+1];
-    while(isdigit(str[rpos]) && wpos < INTERGER_STR_MAX_LEN) {
+    char buf[INTEGER_STR_MAX_LEN+1];
+    while(isdigit(str[rpos]) && wpos < INTEGER_STR_MAX_LEN) {
         buf[wpos++] = str[rpos++];
     }
     buf[wpos] = '\0';
@@ -345,7 +345,7 @@ uint32_t qjson_load_exponent(const char *str, int32_t *exponent, const char **pa
 
     uint32_t rpos = 1;
     uint32_t wpos = 0;
-    char buf[INTERGER_STR_MAX_LEN+1];
+    char buf[INTEGER_STR_MAX_LEN+1];
 
     if(str[rpos] == '-') {
 		buf[wpos++] = str[rpos++];
@@ -354,7 +354,7 @@ uint32_t qjson_load_exponent(const char *str, int32_t *exponent, const char **pa
 	} else {
 	}
 
-    while(isdigit(str[rpos]) && wpos < INTERGER_STR_MAX_LEN) {
+    while(isdigit(str[rpos]) && wpos < INTEGER_STR_MAX_LEN) {
         buf[wpos++] = str[rpos++];
     }
     buf[wpos] = '\0';
@@ -363,7 +363,34 @@ uint32_t qjson_load_exponent(const char *str, int32_t *exponent, const char **pa
 }
 
 uint32_t qjson_load_number(const char *str, qjson_value_t **value, const char **parse_end) {
-	return 0;
+	const char *pos = str;
+	if(*pos == '-') {
+		pos++;
+	}
+	if(! isdigit(*pos)) {
+		*value = NULL;
+		*parse_end = str;
+		return FAILURE;
+	}
+
+	qjson_value_t *number = malloc(sizeof(*number));
+    memset(number, 0, sizeof(*number));
+    *value = number;
+
+	while(isdigit(*pos)) {
+		pos++;
+	}
+    if(*pos == '.' || *pos == 'e' || *pos == 'E') {
+        number->json_type = QJSON_FLOAT;
+        number->v.fraction = strtod(str, (char**)parse_end);
+
+	}else{
+        number->json_type = QJSON_INT;
+		int64_t integer;
+		qjson_load_integer(str, &integer, parse_end);
+        number->v.integer = integer;
+	}
+	return SUCCESS;
 }
 
 uint32_t qjson_load(const char *buf, uint32_t len, qjson_value_t *value) {
@@ -404,7 +431,7 @@ uint32_t qjson_array_length(qjson_array_t *arr) {
 
 
 
-void test_dump_array() {
+void test_dump_str_array() {
     const char * strlist[] = {
         "linux",
         "firefox",
@@ -435,6 +462,37 @@ void test_dump_array() {
     printf("buf: %s, bytes: %d, strlen: %lu\n", buf, bytes, strlen(buf));
 }
 
+void test_dump_number_array() {
+    printf("\n\nin [%s]\n", __FUNCTION__);
+
+    const char *numberlist[] = {
+        "0",
+        "-1",
+        "1",
+        "12345678",
+        "1.1",
+        "0.0",
+        "-1.1",
+        "-0.0",
+        "1234567890.12345678901234567890",
+        "1.23456789E+2",
+        NULL,
+    };
+    const char **cur = &numberlist[0];
+
+    qjson_array_t *arr = qjson_create_array();
+
+    while(*cur != NULL) {
+        qjson_value_t *number;
+        char *end;
+        qjson_load_number(*cur++, &number, (const char**)&end);
+        qjson_array_append(arr, number);
+    }
+
+    char buf[BUFLEN];
+    int bytes = qjson_dump_array(arr, buf, BUFLEN);
+    printf("buf: %s, bytes: %d, strlen: %lu\n", buf, bytes, strlen(buf));
+}
 
 void test_load_string() {
     printf("in [%s]\n", __FUNCTION__);
@@ -501,7 +559,8 @@ void test_lld() {
 }
 
 int main() {
-    test_dump_array();
+    test_dump_str_array();
+    test_dump_number_array();
     //test_load_integer();
     //test_load_fraction();
     //test_load_string();
