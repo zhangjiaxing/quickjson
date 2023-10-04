@@ -336,6 +336,32 @@ uint32_t qjson_load_fraction(const char *str, uint64_t *fraction, const char **p
     return SUCCESS;
 }
 
+uint32_t qjson_load_exponent(const char *str, int32_t *exponent, const char **parse_end) {
+    if(*str != 'e' && *str != 'E') {
+        *exponent = 0;
+        *parse_end = str;
+        return FAILURE;
+    }
+
+    uint32_t rpos = 1;
+    uint32_t wpos = 0;
+    char buf[INTERGER_STR_MAX_LEN+1];
+
+    if(str[rpos] == '-') {
+		buf[wpos++] = str[rpos++];
+	} else if (str[rpos] == '+') {
+		rpos++;
+	} else {
+	}
+
+    while(isdigit(str[rpos]) && wpos < INTERGER_STR_MAX_LEN) {
+        buf[wpos++] = str[rpos++];
+    }
+    buf[wpos] = '\0';
+    *exponent = atoi(buf);
+    return SUCCESS;
+}
+
 uint32_t qjson_load_number(const char *str, qjson_value_t **value, const char **parse_end) {
 	return 0;
 }
@@ -476,10 +502,10 @@ void test_lld() {
 
 int main() {
     test_dump_array();
-    test_load_integer();
-    test_load_fraction();
+    //test_load_integer();
+    //test_load_fraction();
     //test_load_string();
     //test_unescape();
-    test_lld();
+    //test_lld();
     return 0;
 }
