@@ -33,6 +33,7 @@ struct qjson_value {
     qjson_type_t json_type;
     union {
         int64_t integer;
+        bool boolean;
         double fraction;
         char *str;
         struct qjson_array *array;
@@ -93,6 +94,20 @@ qjson_value_t *qjson_create_str(const char *str) {
     return self;
 }
 
+qjson_value_t *qjson_create_bool(bool value) {
+    qjson_value_t *self = malloc(sizeof(*self));
+    memset(self, 0, sizeof(*self));
+    self->json_type = QJSON_BOOL;
+    self->v.boolean = value;
+    return self;
+}
+
+qjson_value_t *qjson_create_null() {
+    qjson_value_t *self = malloc(sizeof(*self));
+    memset(self, 0, sizeof(*self));
+    self->json_type = QJSON_NULL;
+    return self;
+}
 
 uint32_t str_espace_len(const char *str) {
     uint32_t len = 0;
@@ -229,6 +244,26 @@ uint32_t qjson_dump_string(char *str, char *buf, int len) {
     return i;
 }
 
+uint32_t qjson_dump_bool(qjson_value_t *value, char *buf, int len) {
+    if(value == NULL || len < sizeof("false")){
+        return 0;
+    }
+
+    char *result = value->v.boolean?"true": "false";
+    strncpy(buf, result, len);
+    return strlen(result);
+}
+
+uint32_t qjson_dump_null(qjson_value_t *value, char *buf, int len) {
+    if(value == NULL || len < sizeof("null")){
+        return 0;
+    }
+
+    strncpy(buf, "null", len);
+    return strlen("null");
+}
+
+
 uint32_t qjson_dump_array(const qjson_array_t *arr, char *buf, uint32_t len);
 
 uint32_t qjson_dump(qjson_value_t *value, char *buf, uint32_t len) {
@@ -238,12 +273,15 @@ uint32_t qjson_dump(qjson_value_t *value, char *buf, uint32_t len) {
         return snprintf(buf, len, "%lld", value->v.integer);
     case QJSON_FLOAT:
         return snprintf(buf, len, "%lf", value->v.fraction);
-    case QJSON_NULL:
-        return snprintf(buf, len, "null");
     case QJSON_STRING:
         return qjson_dump_string(value->v.str, buf, len);
     case QJSON_ARRAY:
         return qjson_dump_array(value->v.array, buf, len);
+    case QJSON_NULL:
+        //return snprintf(buf, len, "null");
+        return qjson_dump_null(value, buf, len);
+    case QJSON_BOOL:
+        return qjson_dump_bool(value, buf, len);
     default:
         return 0;
     }
@@ -562,6 +600,16 @@ void test_dump_number_array() {
         qjson_load_number(*cur++, &number, (const char**)&end);
         qjson_array_append(arr, number);
     }
+
+    qjson_value_t *temp;
+    temp = qjson_create_bool(true);
+    qjson_array_append(arr, temp);
+
+    temp = qjson_create_bool(false);
+    qjson_array_append(arr, temp);
+
+    temp = qjson_create_null();
+    qjson_array_append(arr, temp);
 
     char buf[BUFLEN];
     int bytes = qjson_dump_array(arr, buf, BUFLEN);
