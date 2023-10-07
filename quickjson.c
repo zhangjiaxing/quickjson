@@ -66,6 +66,9 @@ struct qjson_array {
 typedef struct qjson_array qjson_array_t;
 
 
+qjson_array_t *qjson_create_array();
+qjson_array_t *qjson_array_append(qjson_array_t *arr, const qjson_value_t *e);
+
 qjson_value_t *qjson_create_int(int64_t i) {
     qjson_value_t *self = malloc(sizeof(*self));
     memset(self, 0, sizeof(*self));
@@ -285,15 +288,15 @@ uint32_t qjson_load_string(const char *str, qjson_value_t **value, const char **
     str_unescape(pos, buf, len, parse_end);
     pos = *parse_end;
 
-    if(*pos != '\"') {
-        pos++;
-        *parse_end = pos;
-        return FAILURE;
+    if(*pos == '\"') {
+        *parse_end = ++pos;
+        *value = qjson_create_str(buf);
+        free(buf);
+        return SUCCESS;
     }
 
-    *value = qjson_create_str(buf);
-    free(buf);
-    return SUCCESS;
+    *parse_end = pos;
+    return FAILURE;
 }
 
 
@@ -393,10 +396,81 @@ uint32_t qjson_load_number(const char *str, qjson_value_t **value, const char **
 	return SUCCESS;
 }
 
-uint32_t qjson_load(const char *buf, uint32_t len, qjson_value_t *value) {
-    const char *pos = buf;
+uint32_t qjson_load_array(const char *str, qjson_value_t **value, const char **parse_end) {
+    if(*str != '[') {
+        *value = NULL;
+        *parse_end = str;
+        return FAILURE;
+    }
+    str++;
 
-    return pos-buf;
+    const char *pos = str;
+    qjson_array_t *array = qjson_create_array();
+    while(*pos != ']' && *pos != '\0') {
+
+        while(isspace(*pos)) {
+            pos++;
+        }
+
+        qjson_value_t *item = NULL;
+        if(*pos == '-' || isdigit(*pos)) {
+            qjson_load_number(pos, &item, parse_end);
+        } else if(*pos == '\"') {
+            qjson_load_string(pos, &item, parse_end);
+        } else if(*pos == '[') {
+            qjson_load_array(pos, &item, parse_end);
+        } else {
+            //TODO
+        }
+        qjson_array_append(array, item);
+
+        pos = *parse_end;
+        while(isspace(*pos)) {
+            pos++;
+        }
+
+        if(*pos == ',') {
+            pos++;
+        } else if(*pos == ']'){
+            break;
+        } else {
+            //TODO: free array
+            *value = NULL;
+            *parse_end = pos;
+            return FAILURE;
+        }
+    }
+
+    *parse_end = pos;
+    *value = malloc(sizeof(*value));
+    (*value)->json_type = QJSON_ARRAY;
+    (*value)->v.array = array;
+
+    return SUCCESS;
+}
+
+uint32_t qjson_load(const char *str, uint32_t len, qjson_value_t **value, const char **parse_end) {
+    const char *pos = str;
+    while(isspace(*pos)) {
+        pos++;
+    }
+
+    if(*pos == '[') {
+        qjson_load_array(str, value, parse_end);
+    } else if(*pos == '{') {
+        //TODO
+    } else if(*pos == '\"') {
+        return qjson_load_string(pos, value, parse_end);
+    } else if(*pos == '-' || isdigit(*pos)) {
+        return qjson_load_number(pos, value, parse_end);
+    } else {
+        *value = NULL;
+        *parse_end = pos;
+        return FAILURE;
+    }
+
+
+    return SUCCESS;
 }
 
 qjson_array_t *qjson_create_array() {
@@ -494,6 +568,20 @@ void test_dump_number_array() {
     printf("buf: %s, bytes: %d, strlen: %lu\n", buf, bytes, strlen(buf));
 }
 
+void test_load_array() {
+    printf("\n\nin [%s]\n", __FUNCTION__);
+
+    const char *str = "[-0.0,1,2.0,3, 4,   5.678  , \"9A\", \"10B.\" ]";
+    const char *end;
+    qjson_value_t *array;
+
+    qjson_load_array(str, &array, &end);
+
+    char buf[BUFSIZ];
+    qjson_dump_array(array->v.array, buf, BUFLEN);
+    printf("dump array: %s\n", buf);
+}
+
 void test_load_string() {
     printf("in [%s]\n", __FUNCTION__);
 
@@ -561,6 +649,7 @@ void test_lld() {
 int main() {
     test_dump_str_array();
     test_dump_number_array();
+    test_load_array();
     //test_load_integer();
     //test_load_fraction();
     //test_load_string();
