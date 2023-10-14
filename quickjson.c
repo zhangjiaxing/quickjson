@@ -265,6 +265,7 @@ uint32_t qjson_dump_null(qjson_value_t *value, char *buf, int len) {
 
 
 uint32_t qjson_dump_array(const qjson_array_t *arr, char *buf, uint32_t len);
+uint32_t qjson_dump_object(const qjson_object_t *obj, char *buf, uint32_t len);
 
 uint32_t qjson_dump(qjson_value_t *value, char *buf, uint32_t len) {
     qjson_type_t json_type = value->json_type;
@@ -277,8 +278,9 @@ uint32_t qjson_dump(qjson_value_t *value, char *buf, uint32_t len) {
         return qjson_dump_string(value->v.str, buf, len);
     case QJSON_ARRAY:
         return qjson_dump_array(value->v.array, buf, len);
+    case QJSON_OBJECT:
+        return qjson_dump_object(value->v.object, buf, len);
     case QJSON_NULL:
-        //return snprintf(buf, len, "null");
         return qjson_dump_null(value, buf, len);
     case QJSON_BOOL:
         return qjson_dump_bool(value, buf, len);
@@ -307,6 +309,42 @@ uint32_t qjson_dump_array(const qjson_array_t *arr, char *buf, uint32_t len) {
     buf[i++] = ']';
     buf[i] = '\0';
     return i;
+}
+
+uint32_t qjson_dump_object(const qjson_object_t *obj, char *buf, uint32_t len) {
+    if(obj == NULL || len < 2){
+        return 0;
+    }
+
+    int i = 0;
+    buf[i++] = '{';
+    qjson_pair_t *pair = obj->head.next;
+    while(pair != NULL) {
+        i += qjson_dump_string(pair->key, buf+i, len-i);
+        if(i + 2 < len) {
+            buf[i++] = ':';
+            buf[i++] = ' ';
+        } else {
+            return 0;
+        }
+
+        i += qjson_dump(&pair->value, buf+i, len-i);
+
+        if(pair->next != NULL && i + 2 < len) {
+            buf[i++] = ',';
+            buf[i++] = ' ';
+        }
+        pair = pair->next;
+    }
+
+    if(i + 2 < len) {
+        buf[i++] = '}';
+        buf[i] = '\0';
+        return i;
+    } else {
+        return 0;
+    }
+
 }
 
 
@@ -598,6 +636,27 @@ uint32_t qjson_array_length(qjson_array_t *arr) {
 }
 
 
+qjson_object_t *qjson_create_object() {
+    qjson_object_t *self = malloc(sizeof(*self));
+    memset(self, 0, sizeof(sizeof(*self)));
+    return self;
+}
+
+
+qjson_object_t *qjson_object_append(qjson_object_t *obj, const char *key, const qjson_value_t *e) {
+    qjson_pair_t *pair = malloc(sizeof(qjson_pair_t));
+    pair->key = strdup(key);
+    pair->value = *e; //TODO: deep copy
+    pair->next = NULL;
+
+    qjson_pair_t *last = &obj->head;
+    while(last->next != NULL){
+        last = last->next;
+    }
+    last->next = pair;
+
+    return obj;
+}
 
 void test_dump_str_array() {
     const char * strlist[] = {
@@ -627,6 +686,45 @@ void test_dump_str_array() {
 
     char buf[BUFLEN];
     int bytes = qjson_dump_array(arr, buf, BUFLEN);
+    printf("buf: %s, bytes: %d, strlen: %lu\n", buf, bytes, strlen(buf));
+}
+
+#define elemsof(arr) (sizeof(arr)/sizeof(*arr))
+
+void test_dump_object() {
+    printf("\n\nin [%s]\n", __FUNCTION__);
+
+    struct {
+        const char *key;
+        const char *value;
+    } datas1[] = {
+        {"name", "zhangsan"},
+        {"city", "beijing"},
+        {"birth", "2002"},
+        {"dog", "xiaoming"}
+    };
+
+    struct {
+        const char *key;
+        int value;
+    } datas2[] = {
+        {"id", 123123},
+        {"age", 18},
+        {"number", -123},
+    };
+
+    qjson_object_t *object = qjson_create_object();
+    for(int i=0; i<elemsof(datas1); i++) {
+        qjson_object_append(object, datas1[i].key, qjson_create_str(datas1[i].value));
+    }
+
+    for(int i=0; i<elemsof(datas2); i++) {
+        qjson_object_append(object, datas2[i].key, qjson_create_int(datas2[i].value));
+    }
+
+
+    char buf[BUFLEN];
+    int bytes = qjson_dump_object(object, buf, BUFLEN);
     printf("buf: %s, bytes: %d, strlen: %lu\n", buf, bytes, strlen(buf));
 }
 
@@ -751,13 +849,15 @@ void test_lld() {
 }
 
 int main() {
-    test_dump_str_array();
+    //test_dump_str_array();
     test_dump_number_array();
-    test_load_array();
+    //test_load_array();
     //test_load_integer();
     //test_load_fraction();
     //test_load_string();
     //test_unescape();
     //test_lld();
+
+    test_dump_object();
     return 0;
 }
