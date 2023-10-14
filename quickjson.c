@@ -338,6 +338,52 @@ uint32_t qjson_load_string(const char *str, qjson_value_t **value, const char **
 }
 
 
+uint32_t qjson_load_bool(const char *str, qjson_value_t **value, const char **parse_end) {
+    bool result = false;
+    int parse_len = 0;
+    int false_len = strlen("false");
+    int true_len = strlen("true");
+
+    if(strncmp(str, "false", false_len)  == 0){
+        result = false;
+        parse_len = false_len;
+    } else if (strncmp(str, "true", true_len) ==0 ) {
+        result = true;
+        parse_len = true_len;
+    } else {
+        *parse_end = str;
+        *value = NULL;
+        return FAILURE;
+    }
+
+    qjson_value_t *boolean = malloc(sizeof(qjson_value_t));
+    memset(boolean, 0, sizeof(qjson_value_t));
+    boolean->json_type = QJSON_BOOL;
+    boolean->v.boolean = result;
+    *value = boolean;
+    *parse_end = str + parse_len;
+    return SUCCESS;
+}
+
+uint32_t qjson_load_null(const char *str, qjson_value_t **value, const char **parse_end) {
+    int null_len = strlen("null");
+    if(strncmp(str, "null", null_len) == 0){
+
+        qjson_value_t *null = malloc(sizeof(qjson_value_t));
+        memset(null, 0, sizeof(qjson_value_t));
+        null->json_type = QJSON_NULL;
+        *value = null;
+        *parse_end = str + null_len;
+        return SUCCESS;
+    } else {
+        printf("nullstr:%s\n", str);
+    }
+    *value = NULL;
+    *parse_end = str;
+    return FAILURE;
+}
+
+
 uint32_t qjson_load_integer(const char *str, int64_t *integer, const char **parse_end) {
 #define INTEGER_STR_MAX_LEN 20
     int rpos = 0;
@@ -450,16 +496,25 @@ uint32_t qjson_load_array(const char *str, qjson_value_t **value, const char **p
             pos++;
         }
 
+        uint32_t ret;
         qjson_value_t *item = NULL;
+
         if(*pos == '-' || isdigit(*pos)) {
-            qjson_load_number(pos, &item, parse_end);
+            ret = qjson_load_number(pos, &item, parse_end);
         } else if(*pos == '\"') {
-            qjson_load_string(pos, &item, parse_end);
+            ret = qjson_load_string(pos, &item, parse_end);
         } else if(*pos == '[') {
-            qjson_load_array(pos, &item, parse_end);
+            ret = qjson_load_array(pos, &item, parse_end);
+        } else if(*pos == 't' || *pos == 'f'){
+            ret = qjson_load_bool(pos, &item, parse_end);
+        } else if(*pos == 'n') {
+            ret = qjson_load_null(pos, &item, parse_end);
         } else {
             //TODO
+            printf("=======BUG\n");
         }
+
+        printf("======= ret = %lu\n", ret);
         qjson_array_append(array, item);
 
         pos = *parse_end;
@@ -470,6 +525,7 @@ uint32_t qjson_load_array(const char *str, qjson_value_t **value, const char **p
         if(*pos == ',') {
             pos++;
         } else if(*pos == ']'){
+            pos++;
             break;
         } else {
             //TODO: free array
@@ -619,7 +675,7 @@ void test_dump_number_array() {
 void test_load_array() {
     printf("\n\nin [%s]\n", __FUNCTION__);
 
-    const char *str = "[-0.0,1,2.0,3, 4,   5.678  , \"9A\", \"10B.\" ]";
+    const char *str = "[-0.0,1,2.0,3, 4,   5.678  , \"9A\", \"10B.\" , null, false, true, [], [9,  8, 7, [0]]]] ]";
     const char *end;
     qjson_value_t *array;
 
